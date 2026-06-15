@@ -9,10 +9,10 @@
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
-    <artifactId>mod-fspiop-interface</artifactId>
+    <artifactId>mod_fspiop_interface</artifactId>
     <packaging>jar</packaging>
     <name>mod_fspiop_interface</name>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <url>https://github.com/openapitools/openapi-generator</url>
     <description>OpenAPI Java</description>
     <scm>
