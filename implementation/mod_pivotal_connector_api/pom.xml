@@ -20,6 +20,17 @@
     </properties>
 
     <dependencies>
+        <!--  Related Dependencies      -->
+        <dependency>
+            <groupId>com.thitsaworks.mojaloop.coreconnector</groupId>
+            <artifactId>mod-component</artifactId>
+            <version>1.0.2-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>com.thitsaworks.mojaloop.coreconnector</groupId>
+            <artifactId>mod-fspiop-interface</artifactId>
+            <version>1.0.0</version>
+        </dependency>
         <!-- Spring Boot Starters -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -83,16 +94,6 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.thitsaworks.mojaloop.coreconnector</groupId>
-            <artifactId>mod-component</artifactId>
-            <version>1.0.0</version>
-        </dependency>
-        <dependency>
-            <groupId>com.thitsaworks.mojaloop.coreconnector</groupId>
-            <artifactId>mod-fspiop-interface</artifactId>
-            <version>1.0.0</version>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>

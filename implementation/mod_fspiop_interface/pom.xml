@@ -12,9 +12,7 @@
     <artifactId>mod_fspiop_interface</artifactId>
     <packaging>jar</packaging>
     <name>mod_fspiop_interface</name>
-    <version>1.0.2-SNAPSHOT</version>
-
-
+    <version>1.0.0</version>
     <url>https://github.com/openapitools/openapi-generator</url>
     <description>OpenAPI Java</description>
     <scm>
