@@ -9,6 +9,8 @@ import com.thitsaworks.mojaloop.coreconnector.component.mojaloop.ErrorCode;
 import com.thitsaworks.mojaloop.coreconnector.fspiop.model.Currency;
 import com.thitsaworks.mojaloop.coreconnector.fspiop.model.ErrorInformation;
 import com.thitsaworks.mojaloop.coreconnector.fspiop.model.ErrorInformationResponse;
+import com.thitsaworks.mojaloop.coreconnector.fspiop.model.Extension;
+import com.thitsaworks.mojaloop.coreconnector.fspiop.model.ExtensionList;
 import com.thitsaworks.mojaloop.coreconnector.fspiop.model.Money;
 import com.thitsaworks.mojaloop.coreconnector.fspiop.model.Party;
 import com.thitsaworks.mojaloop.coreconnector.fspiop.model.PartyIdInfo;
@@ -16,7 +18,7 @@ import com.thitsaworks.mojaloop.coreconnector.fspiop.model.TransfersIDPatchRespo
 import com.thitsaworks.mojaloop.coreconnector.listeners.pending_transfer_store.PendingTransfer;
 import com.thitsaworks.mojaloop.coreconnector.listeners.pending_transfer_store.PendingTransfersStore;
 import com.thitsaworks.mojaloop.coreconnector.logging.MdcExtractors;
-import com.thitsaworks.mojaloop.coreconnector.mapper.nats.NatsPullListener;
+import com.thitsaworks.mojaloop.coreconnector.nats.NatsPullListener;
 import com.thitsaworks.mojaloop.coreconnector.nats.NatsService;
 import com.thitsaworks.mojaloop.coreconnector.payload.fspclient.ConfirmationForTransfer;
 import com.thitsaworks.mojaloop.coreconnector.payload.nats.PatchTransfersNatsMessage;
@@ -30,6 +32,7 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @Component
@@ -137,7 +140,7 @@ public class PatchTransfersListener implements InitializingBean, DisposableBean 
 
             String confirmedHomeTransactionId = confirmTransfer(
                 transferId, pending.payeeMobile(),
-                pending.amount(), pending.payeeReceiveAmount(), pending.currency(), pending.homeTransactionId());
+                pending.amount(), pending.payeeReceiveAmount(), pending.currency(), pending.homeTransactionId(),pending.extensionList());
 
             pendingStore.delete(transferId);
 
@@ -164,7 +167,8 @@ public class PatchTransfersListener implements InitializingBean, DisposableBean 
                                    String amount,
                                    Money payeeReceiveAmount,
                                    String currency,
-                                   String homeTransactionId)
+                                   String homeTransactionId,
+                                   ExtensionList extensionList)
         throws JsonProcessingException, PutTransferException {
 
         LOG.info(
@@ -177,7 +181,7 @@ public class PatchTransfersListener implements InitializingBean, DisposableBean 
         request.setTransferId(transferId);
         request.setHomeTransactionId(homeTransactionId);
         request.setQuoteRequest(quoteRequest(payeeMobile, amount, payeeReceiveAmount, currency));
-
+        request.setQuote(quote(extensionList));
         ConfirmationForTransfer.Response response = this.fspClientService.doConfirmationForTransfer(
             request);
 
@@ -207,62 +211,6 @@ public class PatchTransfersListener implements InitializingBean, DisposableBean 
             "Put transfer response from Payee for TransferId {} : {}", transferId,
             this.objectMapper.writeValueAsString(response));
         return confirmedHomeTransactionId;
-    }
-
-    private ConfirmationForTransfer.QuoteRequest quoteRequest(String payeeMobile,
-                                                              String amount,
-                                                              Money payeeReceiveAmount,
-                                                              String currency) {
-
-        ConfirmationForTransfer.Body body = new ConfirmationForTransfer.Body();
-        body.setPayee(payee(payeeMobile));
-        body.setAmount(amount(amount, currency));
-        body.setPayeeReceiveAmount(new BigDecimal(payeeReceiveAmount.getAmount()));
-        ConfirmationForTransfer.QuoteRequest quoteRequest = new ConfirmationForTransfer.QuoteRequest();
-        quoteRequest.setBody(body);
-        return quoteRequest;
-    }
-
-    private Party payee(String payeeMobile) {
-
-        PartyIdInfo partyIdInfo = new PartyIdInfo();
-        partyIdInfo.setPartyIdentifier(payeeMobile);
-
-        Party party = new Party();
-        party.setPartyIdInfo(partyIdInfo);
-        return party;
-    }
-
-    private Money amount(String value, String currency) {
-
-        Money money = new Money();
-        money.setAmount(value);
-        money.setCurrency(Currency.fromValue(currency));
-        return money;
-    }
-
-    private String transferState(TransfersIDPatchResponse response) {
-
-        return response == null || response.getTransferState() == null ? null :
-                   response.getTransferState()
-                           .toString();
-    }
-
-    private static final class PutTransferException extends Exception {
-
-        private final String errorCode;
-
-        private PutTransferException(String errorCode, String message) {
-
-            super(message);
-            this.errorCode = errorCode;
-        }
-
-        private String errorCode() {
-
-            return errorCode;
-        }
-
     }
 
     private void maybeForceCreditFailure(String transferId) {
@@ -309,6 +257,72 @@ public class PatchTransfersListener implements InitializingBean, DisposableBean 
                 "Failed to publish PATCH ERROR audit for transferId={}", msg.getTransferId(),
                 publishErr);
         }
+    }
+
+    private ConfirmationForTransfer.QuoteRequest quoteRequest(String payeeMobile,
+                                                              String amount,
+                                                              Money payeeReceiveAmount,
+                                                              String currency) {
+
+        ConfirmationForTransfer.Body body = new ConfirmationForTransfer.Body();
+        body.setPayee(payee(payeeMobile));
+        body.setAmount(amount(amount, currency));
+        body.setPayeeReceiveAmount(new BigDecimal(payeeReceiveAmount.getAmount()));
+        ConfirmationForTransfer.QuoteRequest quoteRequest = new ConfirmationForTransfer.QuoteRequest();
+        quoteRequest.setBody(body);
+        return quoteRequest;
+    }
+
+    private ConfirmationForTransfer.Quote quote(ExtensionList extensionList) {
+
+        ConfirmationForTransfer.InternalResponse response = new ConfirmationForTransfer.InternalResponse();
+        response.setExtensionList(extensionList);
+
+        ConfirmationForTransfer.Quote quote = new ConfirmationForTransfer.Quote();
+        quote.setResponse(response);
+        return quote;
+    }
+
+    private Party payee(String payeeMobile) {
+
+        PartyIdInfo partyIdInfo = new PartyIdInfo();
+        partyIdInfo.setPartyIdentifier(payeeMobile);
+
+        Party party = new Party();
+        party.setPartyIdInfo(partyIdInfo);
+        return party;
+    }
+
+    private Money amount(String value, String currency) {
+
+        Money money = new Money();
+        money.setAmount(value);
+        money.setCurrency(Currency.fromValue(currency));
+        return money;
+    }
+
+    private String transferState(TransfersIDPatchResponse response) {
+
+        return response == null || response.getTransferState() == null ? null :
+                   response.getTransferState()
+                           .toString();
+    }
+
+    private static final class PutTransferException extends Exception {
+
+        private final String errorCode;
+
+        private PutTransferException(String errorCode, String message) {
+
+            super(message);
+            this.errorCode = errorCode;
+        }
+
+        private String errorCode() {
+
+            return errorCode;
+        }
+
     }
 
     private ErrorInformationResponse toErrorResponse(Exception err, String idValue)

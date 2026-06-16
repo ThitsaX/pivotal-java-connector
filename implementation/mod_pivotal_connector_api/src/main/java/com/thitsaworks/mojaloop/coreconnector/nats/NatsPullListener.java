@@ -1,7 +1,6 @@
-package com.thitsaworks.mojaloop.coreconnector.mapper.nats;
+package com.thitsaworks.mojaloop.coreconnector.nats;
 
 import com.thitsaworks.mojaloop.coreconnector.logging.MdcContext;
-import com.thitsaworks.mojaloop.coreconnector.nats.NatsService;
 import io.nats.client.JetStreamSubscription;
 import io.nats.client.Message;
 import org.slf4j.Logger;

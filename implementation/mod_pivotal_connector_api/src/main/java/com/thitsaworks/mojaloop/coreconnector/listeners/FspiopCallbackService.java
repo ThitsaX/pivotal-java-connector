@@ -18,10 +18,12 @@ import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 @Service
 public class FspiopCallbackService {
@@ -33,6 +35,9 @@ public class FspiopCallbackService {
     private static final String CT_QUOTES = "application/vnd.interoperability.quotes+json;version=2.0";
 
     private static final String CT_TRANSFERS = "application/vnd.interoperability.transfers+json;version=2.0";
+
+    private static final Pattern TRACEPARENT = Pattern.compile(
+        "^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$");
 
     private static final DateTimeFormatter HTTP_DATE_FORMATTER = DateTimeFormatter
                                                                      .ofPattern(
@@ -153,11 +158,20 @@ public class FspiopCallbackService {
         if (destination != null && !destination.isBlank()) {
             headers.put("fspiop-destination", destination);
         }
-        if (traceparent != null && !traceparent.isBlank()) {
+
+        if (isValidTraceparent(traceparent)) {
             headers.put("traceparent", traceparent);
         }
 
         return headers;
+    }
+
+    private boolean isValidTraceparent(String value) {
+
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        return TRACEPARENT.matcher(value).matches(); // remove the zero-rejection
     }
 
     private void put(String url, Object body, Map<String, String> headers) throws Exception {

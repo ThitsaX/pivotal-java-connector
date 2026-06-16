@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.thitsaworks.mojaloop.coreconnector.component.mojaloop.ErrorInformationResponse;
 import com.thitsaworks.mojaloop.coreconnector.component.mojaloop.StateEnum;
+import com.thitsaworks.mojaloop.coreconnector.fspiop.model.Extension;
 import com.thitsaworks.mojaloop.coreconnector.fspiop.model.ExtensionList;
 import com.thitsaworks.mojaloop.coreconnector.fspiop.model.GeoCode;
 import com.thitsaworks.mojaloop.coreconnector.fspiop.model.Money;
@@ -16,6 +17,7 @@ import lombok.Setter;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.List;
 
 public class ConfirmationForTransfer {
 
@@ -33,6 +35,9 @@ public class ConfirmationForTransfer {
 
         @JsonProperty("direction")
         private String direction;
+
+        @JsonProperty("quote")
+        private Quote quote;
 
         @JsonProperty("quoteRequest")
         private QuoteRequest quoteRequest;

@@ -5,14 +5,14 @@
     <parent>
         <groupId>com.thitsaworks.mojaloop.coreconnector</groupId>
         <artifactId>coreconnector</artifactId>
-        <version>1.0.2-SNAPSHOT</version>
+        <version>1.0.4</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
     <artifactId>mod-fspiop-interface</artifactId>
     <packaging>jar</packaging>
     <name>mod-fspiop-interface</name>
-    <version>1.0.2-SNAPSHOT</version>
+    <version>1.0.4</version>
     <url>https://github.com/openapitools/openapi-generator</url>
     <description>OpenAPI Java</description>
     <scm>

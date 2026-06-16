@@ -10,7 +10,7 @@ import com.thitsaworks.mojaloop.coreconnector.fspiop.model.QuotesIDPutResponse;
 import com.thitsaworks.mojaloop.coreconnector.fspiop.model.QuotesPostRequest;
 import com.thitsaworks.mojaloop.coreconnector.ilp.IlpService;
 import com.thitsaworks.mojaloop.coreconnector.logging.MdcExtractors;
-import com.thitsaworks.mojaloop.coreconnector.mapper.nats.NatsPullListener;
+import com.thitsaworks.mojaloop.coreconnector.nats.NatsPullListener;
 import com.thitsaworks.mojaloop.coreconnector.mapper.nats.PostQuoteMapper;
 import com.thitsaworks.mojaloop.coreconnector.nats.NatsService;
 import com.thitsaworks.mojaloop.coreconnector.payload.fspclient.DoQuote;

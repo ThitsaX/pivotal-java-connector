@@ -11,7 +11,7 @@ import com.thitsaworks.mojaloop.coreconnector.fspiop.model.Party;
 import com.thitsaworks.mojaloop.coreconnector.fspiop.model.PartyIdInfo;
 import com.thitsaworks.mojaloop.coreconnector.fspiop.model.PartyIdType;
 import com.thitsaworks.mojaloop.coreconnector.logging.MdcExtractors;
-import com.thitsaworks.mojaloop.coreconnector.mapper.nats.NatsPullListener;
+import com.thitsaworks.mojaloop.coreconnector.nats.NatsPullListener;
 import com.thitsaworks.mojaloop.coreconnector.nats.NatsService;
 import com.thitsaworks.mojaloop.coreconnector.payload.fspclient.LookUp;
 import com.thitsaworks.mojaloop.coreconnector.payload.nats.GetPartiesNatsMessage;

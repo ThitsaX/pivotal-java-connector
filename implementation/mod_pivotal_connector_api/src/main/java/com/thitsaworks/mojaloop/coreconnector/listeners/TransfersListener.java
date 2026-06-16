@@ -16,7 +16,7 @@ import com.thitsaworks.mojaloop.coreconnector.listeners.pending_transfer_store.I
 import com.thitsaworks.mojaloop.coreconnector.listeners.pending_transfer_store.PendingTransfer;
 import com.thitsaworks.mojaloop.coreconnector.listeners.pending_transfer_store.PendingTransfersStore;
 import com.thitsaworks.mojaloop.coreconnector.logging.MdcExtractors;
-import com.thitsaworks.mojaloop.coreconnector.mapper.nats.NatsPullListener;
+import com.thitsaworks.mojaloop.coreconnector.nats.NatsPullListener;
 import com.thitsaworks.mojaloop.coreconnector.nats.NatsService;
 import com.thitsaworks.mojaloop.coreconnector.payload.fspclient.ReservationForTransfer;
 import com.thitsaworks.mojaloop.coreconnector.payload.nats.PostTransfersNatsMessage;
@@ -159,7 +159,7 @@ public class TransfersListener implements InitializingBean, DisposableBean {
 
             pendingStore.set(
                 transferId,
-                new PendingTransfer(payeeMobile, amount, payeeReceiveAmount,currency, homeTransactionId));
+                new PendingTransfer(payeeMobile, amount, payeeReceiveAmount,currency, homeTransactionId,request.getExtensionList()));
 
             TransfersIDPutResponse response = new TransfersIDPutResponse()
                                                   .transferState(TransferState.RESERVED)

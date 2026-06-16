@@ -1,5 +1,6 @@
 package com.thitsaworks.mojaloop.coreconnector.listeners.pending_transfer_store;
 
+import com.thitsaworks.mojaloop.coreconnector.fspiop.model.ExtensionList;
 import com.thitsaworks.mojaloop.coreconnector.fspiop.model.Money;
 
 public record PendingTransfer(
@@ -7,5 +8,6 @@ public record PendingTransfer(
     String amount,
     Money payeeReceiveAmount,
     String currency,
-    String homeTransactionId
+    String homeTransactionId,
+    ExtensionList extensionList
 ) { }
