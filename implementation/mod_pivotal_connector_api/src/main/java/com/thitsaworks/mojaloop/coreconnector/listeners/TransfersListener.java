@@ -126,7 +126,7 @@ public class TransfersListener implements InitializingBean, DisposableBean {
             LOG.info("postTransfers transferId={} amount={} {}", transferId, amount, currency);
 
             if (!connectorId.equals(request.getPayeeFsp())) {
-                LOG.warn("postTransfers transferId={} payeeFsp={} does not match connectorId={} - aborting",
+                LOG.warn("postTransfers transferId={} payeeFspId={} does not match connectorId={} - aborting",
                          transferId,
                          request.getPayeeFsp(),
                          connectorId);
@@ -156,6 +156,15 @@ public class TransfersListener implements InitializingBean, DisposableBean {
                     "Payee partyIdentifier missing from ILP agreement for transferId=" + transferId);
             }
 
+            String
+                payerMobile =
+                agreement.payer()
+                         .getPartyIdentifier();
+            if (payerMobile == null || payerMobile.isBlank()) {
+                throw new IllegalStateException(
+                    "Payee partyIdentifier missing from ILP agreement for transferId=" + transferId);
+            }
+
             long amountMinor = ilp.toMinorUnits(amount, currency);
             long lifetimeSeconds = ilp.resolveLifetimeSeconds(request.getExpiration());
 
@@ -169,15 +178,14 @@ public class TransfersListener implements InitializingBean, DisposableBean {
                 throw new IllegalStateException("ILP condition mismatch for transferId=" + transferId);
             }
 
-            Money payeeReceiveAmount = agreement.payeeReceiveAmount();
-
             String homeTransactionId = reserveTransfer(agreement, request);
 
             pendingStore.set(transferId,
                              new PendingTransfer(payeeMobile,
-                                                 agreement.payer().getPartyIdentifier(),
+                                                 agreement.payer()
+                                                          .getPartyIdentifier(),
                                                  amount,
-                                                 payeeReceiveAmount,
+                                                 agreement.payeeReceiveAmount(),
                                                  currency,
                                                  homeTransactionId,
                                                  request.getPayerFsp(),

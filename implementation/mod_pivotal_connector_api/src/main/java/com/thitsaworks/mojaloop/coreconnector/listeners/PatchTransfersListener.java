@@ -6,14 +6,15 @@ import com.thitsaworks.mojaloop.coreconnector.CoreConnectorConfiguration;
 import com.thitsaworks.mojaloop.coreconnector.audit.AuditPublisherService;
 import com.thitsaworks.mojaloop.coreconnector.audit.BackendErrorSerializer;
 import com.thitsaworks.mojaloop.coreconnector.component.mojaloop.ErrorCode;
+import com.thitsaworks.mojaloop.coreconnector.component.mojaloop.StateEnum;
 import com.thitsaworks.mojaloop.coreconnector.fspiop.model.Currency;
 import com.thitsaworks.mojaloop.coreconnector.fspiop.model.ErrorInformation;
 import com.thitsaworks.mojaloop.coreconnector.fspiop.model.ErrorInformationResponse;
-import com.thitsaworks.mojaloop.coreconnector.fspiop.model.Extension;
 import com.thitsaworks.mojaloop.coreconnector.fspiop.model.ExtensionList;
 import com.thitsaworks.mojaloop.coreconnector.fspiop.model.Money;
 import com.thitsaworks.mojaloop.coreconnector.fspiop.model.Party;
 import com.thitsaworks.mojaloop.coreconnector.fspiop.model.PartyIdInfo;
+import com.thitsaworks.mojaloop.coreconnector.fspiop.model.PartyIdType;
 import com.thitsaworks.mojaloop.coreconnector.fspiop.model.TransfersIDPatchResponse;
 import com.thitsaworks.mojaloop.coreconnector.listeners.pending_transfer_store.PendingTransfer;
 import com.thitsaworks.mojaloop.coreconnector.listeners.pending_transfer_store.PendingTransfersStore;
@@ -32,7 +33,6 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 @Component
@@ -80,8 +80,7 @@ public class PatchTransfersListener implements InitializingBean, DisposableBean 
 
         String connectorId = config.getConnectorId();
         String subject = natsService.getPatchTransfersSubject();
-        String durable = natsService.normalizeDurable(
-            connectorId, "connector-consumer-patch-transfers");
+        String durable = natsService.normalizeDurable(connectorId, "connector-consumer-patch-transfers");
 
         JetStreamManagement jsm = natsService.jetstreamManager();
         String stream = natsService.ensureStream(jsm, subject);
@@ -89,9 +88,12 @@ public class PatchTransfersListener implements InitializingBean, DisposableBean 
 
         LOG.info("Listening on '{}'", subject);
 
-        listener = new NatsPullListener<>(
-            LOG, natsService, "PatchTransfers", PatchTransfersNatsMessage.class, this::handle,
-            MdcExtractors::patchTransfers);
+        listener = new NatsPullListener<>(LOG,
+                                          natsService,
+                                          "PatchTransfers",
+                                          PatchTransfersNatsMessage.class,
+                                          this::handle,
+                                          MdcExtractors::patchTransfers);
         listener.start(subject, stream, durable, "patch-transfers-listener");
     }
 
@@ -108,14 +110,12 @@ public class PatchTransfersListener implements InitializingBean, DisposableBean 
         String transferId = msg.getTransferId();
         String transferState = transferState(msg.getResponse());
 
-        LOG.info(
-            "Put Transfer Request from Inbound to Payee cc for TransferId {} : {}", transferId,
-            this.objectMapper.writeValueAsString(msg));
+        LOG.info("Put Transfer Request from Inbound to Payee cc for TransferId {} : {}",
+                 transferId,
+                 this.objectMapper.writeValueAsString(msg));
         boolean acquired = pendingStore.acquireLock(transferId);
         if (!acquired) {
-            LOG.warn(
-                "patchTransfers transferId={} lock not acquired, another instance is handling it",
-                transferId);
+            LOG.warn("patchTransfers transferId={} lock not acquired, another instance is handling it", transferId);
             return;
         }
 
@@ -124,39 +124,47 @@ public class PatchTransfersListener implements InitializingBean, DisposableBean 
             pending = pendingStore.get(transferId);
 
             if (pending == null) {
-                LOG.warn(
-                    "patchTransfers transferId={} not found in pending store - skipping",
-                    transferId);
+                LOG.warn("patchTransfers transferId={} not found in pending store - skipping", transferId);
                 return;
             }
 
             if (!COMMITTED.equals(transferState)) {
-                LOG.warn(
-                    "patchTransfers transferId={} state={} - skipping confirmation", transferId,
-                    transferState);
+                LOG.warn("patchTransfers transferId={} state={} - skipping confirmation", transferId, transferState);
                 pendingStore.delete(transferId);
                 return;
             }
-
-            String confirmedHomeTransactionId = confirmTransfer(
-                transferId, pending.payeeMobile(),
-                pending.amount(), pending.payeeReceiveAmount(), pending.currency(), pending.homeTransactionId(),pending.extensionList());
+            StateEnum confirmationState = confirmationState(transferState);
+            String confirmedHomeTransactionId = confirmTransfer(transferId,
+                                                                pending.payeeMobile(),
+                                                                pending.payerMobile(),
+                                                                pending.amount(),
+                                                                pending.payeeReceiveAmount(),
+                                                                pending.currency(),
+                                                                pending.homeTransactionId(),
+                                                                pending.payerFspId(),
+                                                                pending.payeeFspId(),
+                                                                pending.note(),
+                                                                confirmationState,
+                                                                pending.extensionList());
 
             pendingStore.delete(transferId);
 
-            LOG.info(
-                "patchTransfers CONFIRMED transferId={} payeeMobile={} amount={} {} homeTransactionId={}",
-                transferId, pending.payeeMobile(), pending.amount(), pending.currency(),
-                confirmedHomeTransactionId);
+            LOG.info("patchTransfers CONFIRMED transferId={} payeeMobile={} amount={} {} homeTransactionId={}",
+                     transferId,
+                     pending.payeeMobile(),
+                     pending.amount(),
+                     pending.currency(),
+                     confirmedHomeTransactionId);
         } catch (Exception err) {
             ErrorInformationResponse errorResponse = toErrorResponse(err, transferId);
 
             publishPatchErrorAudit(msg, pending, err);
             pendingStore.delete(transferId);
 
-            LOG.error(
-                "patchTransfers transferId={} confirmation failed: {}", transferId,
-                objectMapper.writeValueAsString(errorResponse), err);
+            LOG.error("patchTransfers transferId={} confirmation failed: {}",
+                      transferId,
+                      objectMapper.writeValueAsString(errorResponse),
+                      err);
         } finally {
             pendingStore.releaseLock(transferId);
         }
@@ -164,52 +172,66 @@ public class PatchTransfersListener implements InitializingBean, DisposableBean 
 
     private String confirmTransfer(String transferId,
                                    String payeeMobile,
+                                   String payerMobile,
                                    String amount,
                                    Money payeeReceiveAmount,
                                    String currency,
                                    String homeTransactionId,
-                                   ExtensionList extensionList)
-        throws JsonProcessingException, PutTransferException {
+                                   String payerFspId,
+                                   String payeeFspId,
+                                   String note,
+                                   StateEnum confirmationState,
+                                   ExtensionList extensionList) throws JsonProcessingException, PutTransferException {
 
         LOG.info(
-            "confirmTransfer transferId={} payeeMobile={} amount={} payeeReceiveAmount={} homeTransactionId={}",
-            transferId, payeeMobile, amount, payeeReceiveAmount, homeTransactionId);
+            "confirmTransfer transferId={} payeeMobile={} amount={} payeeReceiveAmount={} homeTransactionId={} state={}",
+            transferId,
+            payeeMobile,
+            amount,
+            payeeReceiveAmount,
+            homeTransactionId,
+            confirmationState);
 
         maybeForceCreditFailure(transferId);
 
         ConfirmationForTransfer.Request request = new ConfirmationForTransfer.Request();
         request.setTransferId(transferId);
         request.setHomeTransactionId(homeTransactionId);
-        request.setQuoteRequest(quoteRequest(payeeMobile, amount, payeeReceiveAmount, currency));
+        request.setQuoteRequest(quoteRequest(payeeMobile,
+                                             payerMobile,
+                                             amount,
+                                             payeeReceiveAmount,
+                                             currency,
+                                             payerFspId,
+                                             payeeFspId,
+                                             note));
         request.setQuote(quote(extensionList));
-        ConfirmationForTransfer.Response response = this.fspClientService.doConfirmationForTransfer(
-            request);
+        request.setCurrentState(confirmationState);
+        ConfirmationForTransfer.Response response = this.fspClientService.doConfirmationForTransfer(request);
 
         if (response == null) {
-            throw new PatchTransfersListener.PutTransferException(
-                String.valueOf(ErrorCode.GENERIC_DOWNSTREAM_ERROR_PAYEE.getStatusCode()),
-                "No response from DFSP backend for transferId=" + transferId);
+            throw new PatchTransfersListener.PutTransferException(String.valueOf(ErrorCode.GENERIC_DOWNSTREAM_ERROR_PAYEE.getStatusCode()),
+                                                                  "No response from DFSP backend for transferId=" +
+                                                                      transferId);
         }
 
         if (response.getError() != null) {
             var errorInformation = response.getError();
-            throw new PatchTransfersListener.PutTransferException(
-                errorInformation.getStatusCode(),
-                errorInformation.getMessage());
+            throw new PatchTransfersListener.PutTransferException(errorInformation.getStatusCode(),
+                                                                  errorInformation.getMessage());
 
         }
 
         String confirmedHomeTransactionId = response.getHomeTransactionId();
         if (confirmedHomeTransactionId == null || confirmedHomeTransactionId.isBlank()) {
-            throw new PatchTransfersListener.PutTransferException(
-                String.valueOf(ErrorCode.GENERIC_DOWNSTREAM_ERROR_PAYEE.getStatusCode()),
-                "DFSP backend confirmation returned empty homeTransactionId for transferId=" +
-                    transferId);
+            throw new PatchTransfersListener.PutTransferException(String.valueOf(ErrorCode.GENERIC_DOWNSTREAM_ERROR_PAYEE.getStatusCode()),
+                                                                  "DFSP backend confirmation returned empty homeTransactionId for transferId=" +
+                                                                      transferId);
         }
 
-        LOG.info(
-            "Put transfer response from Payee for TransferId {} : {}", transferId,
-            this.objectMapper.writeValueAsString(response));
+        LOG.info("Put transfer response from Payee for TransferId {} : {}",
+                 transferId,
+                 this.objectMapper.writeValueAsString(response));
         return confirmedHomeTransactionId;
     }
 
@@ -223,14 +245,13 @@ public class PatchTransfersListener implements InitializingBean, DisposableBean 
         responseBody.put("errorCode", "WALLET_LOCKED");
         responseBody.put("errorMessage", "Simulated credit failure for transferId=" + transferId);
 
-        throw new BackendErrorSerializer.SimulatedBackendException(
-            500, "ERR_BAD_RESPONSE",
-            "Request failed with status code 500", responseBody);
+        throw new BackendErrorSerializer.SimulatedBackendException(500,
+                                                                   "ERR_BAD_RESPONSE",
+                                                                   "Request failed with status code 500",
+                                                                   responseBody);
     }
 
-    private void publishPatchErrorAudit(PatchTransfersNatsMessage msg,
-                                        PendingTransfer pending,
-                                        Exception err) {
+    private void publishPatchErrorAudit(PatchTransfersNatsMessage msg, PendingTransfer pending, Exception err) {
 
         if (pending == null) {
             return;
@@ -243,34 +264,51 @@ public class PatchTransfersListener implements InitializingBean, DisposableBean 
             context.put("amount", pending.amount());
             context.put("currency", pending.currency());
 
-            String serialized = backendErrorSerializer.serialize(
-                new BackendErrorSerializer.BackendErrorInput(
-                    this.config.getConnectorId(),
-                    "confirmTransfer", err, context));
+            String
+                serialized =
+                backendErrorSerializer.serialize(new BackendErrorSerializer.BackendErrorInput(this.config.getConnectorId(),
+                                                                                              "confirmTransfer",
+                                                                                              err,
+                                                                                              context));
 
-            auditPublisher.publishPatchError(
-                new AuditPublisherService.PatchErrorInput(
-                    msg.getTransferId(), msg.getPayerFsp(),
-                    msg.getPayeeFsp(), serialized));
+            auditPublisher.publishPatchError(new AuditPublisherService.PatchErrorInput(msg.getTransferId(),
+                                                                                       msg.getPayerFsp(),
+                                                                                       msg.getPayeeFsp(),
+                                                                                       serialized));
         } catch (Exception publishErr) {
-            LOG.error(
-                "Failed to publish PATCH ERROR audit for transferId={}", msg.getTransferId(),
-                publishErr);
+            LOG.error("Failed to publish PATCH ERROR audit for transferId={}", msg.getTransferId(), publishErr);
         }
     }
 
     private ConfirmationForTransfer.QuoteRequest quoteRequest(String payeeMobile,
+                                                              String payerMobile,
                                                               String amount,
                                                               Money payeeReceiveAmount,
-                                                              String currency) {
+                                                              String currency,
+                                                              String payerFspId,
+                                                              String payeeFspId,
+                                                              String note) {
 
         ConfirmationForTransfer.Body body = new ConfirmationForTransfer.Body();
-        body.setPayee(payee(payeeMobile));
+        body.setPayer(party(payerMobile, payerFspId));
+        body.setPayee(party(payeeMobile, payeeFspId));
         body.setAmount(amount(amount, currency));
         body.setPayeeReceiveAmount(new BigDecimal(payeeReceiveAmount.getAmount()));
+        body.setNote(note);
         ConfirmationForTransfer.QuoteRequest quoteRequest = new ConfirmationForTransfer.QuoteRequest();
         quoteRequest.setBody(body);
         return quoteRequest;
+    }
+
+    private Party party(String identifier, String fspId) {
+
+        PartyIdInfo partyIdInfo = new PartyIdInfo();
+        partyIdInfo.setPartyIdentifier(identifier);
+        partyIdInfo.setFspId(fspId);
+
+        Party party = new Party();
+        party.setPartyIdInfo(partyIdInfo);
+        return party;
     }
 
     private ConfirmationForTransfer.Quote quote(ExtensionList extensionList) {
@@ -283,16 +321,6 @@ public class PatchTransfersListener implements InitializingBean, DisposableBean 
         return quote;
     }
 
-    private Party payee(String payeeMobile) {
-
-        PartyIdInfo partyIdInfo = new PartyIdInfo();
-        partyIdInfo.setPartyIdentifier(payeeMobile);
-
-        Party party = new Party();
-        party.setPartyIdInfo(partyIdInfo);
-        return party;
-    }
-
     private Money amount(String value, String currency) {
 
         Money money = new Money();
@@ -303,9 +331,8 @@ public class PatchTransfersListener implements InitializingBean, DisposableBean 
 
     private String transferState(TransfersIDPatchResponse response) {
 
-        return response == null || response.getTransferState() == null ? null :
-                   response.getTransferState()
-                           .toString();
+        return response == null || response.getTransferState() == null ? null : response.getTransferState()
+                                                                                        .toString();
     }
 
     private static final class PutTransferException extends Exception {
@@ -325,8 +352,7 @@ public class PatchTransfersListener implements InitializingBean, DisposableBean 
 
     }
 
-    private ErrorInformationResponse toErrorResponse(Exception err, String idValue)
-        throws JsonProcessingException {
+    private ErrorInformationResponse toErrorResponse(Exception err, String idValue) throws JsonProcessingException {
 
         String errorCode = String.valueOf(ErrorCode.GENERIC_DOWNSTREAM_ERROR_PAYEE.getStatusCode());
         String errorDescription = err.getMessage();
@@ -336,16 +362,21 @@ public class PatchTransfersListener implements InitializingBean, DisposableBean 
             errorDescription = putTransferException.getMessage();
         }
 
-        ErrorInformation errorInformation = new ErrorInformation()
-                                                .errorCode(errorCode)
-                                                .errorDescription(errorDescription);
+        ErrorInformation
+            errorInformation =
+            new ErrorInformation().errorCode(errorCode)
+                                  .errorDescription(errorDescription);
         ErrorInformationResponse errorInformationResponse = new ErrorInformationResponse().errorInformation(
             errorInformation);
-        LOG.error(
-            "Patch Transfer error Response from Payee cc to HUB for idValue {} : {}", idValue,
-            this.objectMapper.writeValueAsString(errorInformationResponse));
+        LOG.error("Patch Transfer error Response from Payee cc to HUB for idValue {} : {}",
+                  idValue,
+                  this.objectMapper.writeValueAsString(errorInformationResponse));
 
         return errorInformationResponse;
+    }
+    private StateEnum confirmationState(String transferState) {
+
+        return COMMITTED.equals(transferState) ? StateEnum.COMPLETED : StateEnum.valueOf(transferState);
     }
 
 }

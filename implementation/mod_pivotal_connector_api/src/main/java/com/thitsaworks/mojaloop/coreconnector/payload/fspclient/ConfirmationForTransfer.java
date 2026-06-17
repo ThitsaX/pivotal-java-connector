@@ -96,10 +96,10 @@ public class ConfirmationForTransfer {
         @JsonProperty("transferId")
         private String transferId;
 
-        @JsonProperty("payeeFsp")
+        @JsonProperty("payeeFspId")
         private String payeeFsp;
 
-        @JsonProperty("payerFsp")
+        @JsonProperty("payerFspId")
         private String payerFsp;
 
         @JsonProperty("amount")

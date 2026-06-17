@@ -48,8 +48,8 @@ public class AuditPublisherService {
 
         Map<String, Object> content = new LinkedHashMap<>();
         content.put("correlationId", input.correlationId());
-        content.put("payerFsp", input.payerFsp());
-        content.put("payeeFsp", input.payeeFsp());
+        content.put("payerFspId", input.payerFsp());
+        content.put("payeeFspId", input.payeeFsp());
         content.put("error", input.error());
         content.put("occurredAt", Instant.now().toString());
 
@@ -62,7 +62,7 @@ public class AuditPublisherService {
         this.natsService.jetstream().publish(SUBJECT, this.natsService.serialize(message));
 
         LOG.info(
-            "Published PATCH ERROR audit transferId={} payerFsp={} payeeFsp={}",
+            "Published PATCH ERROR audit transferId={} payerFspId={} payeeFspId={}",
             input.correlationId(), input.payerFsp(), input.payeeFsp());
     }
 
