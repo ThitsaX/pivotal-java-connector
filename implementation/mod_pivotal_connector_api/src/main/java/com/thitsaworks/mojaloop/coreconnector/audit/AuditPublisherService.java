@@ -43,6 +43,8 @@ public class AuditPublisherService {
 
     private static final String ERROR_ACTION = "ERROR";
 
+    private static final String SUCCESS_ACTION = "RESPONSE";
+
     private static final String CONNECTOR_GATEWAY = "CONNECTOR";
 
     private final NatsService natsService;
@@ -79,6 +81,33 @@ public class AuditPublisherService {
         LOG.info(
             "Published PATCH ERROR audit transferId={} payerFspId={} payeeFspId={}",
             input.correlationId(), input.payerFsp(), input.payeeFsp());
+    }
+
+    public void publishPatchSuccess(PatchSuccessInput input) throws Exception {
+
+        ensureStream();
+
+        Map<String, Object> content = new LinkedHashMap<>();
+        content.put("correlationId", input.correlationId());
+        content.put("payerFsp", input.payerFsp());
+        content.put("payeeFsp", input.payeeFsp());
+        content.put("payeeMobile", input.payeeMobile());
+        content.put("amount", input.amount());
+        content.put("homeTransactionId", input.homeTransactionId());
+        content.put("occurredAt", Instant.now().toString());
+
+
+        Map<String, Object> message = new LinkedHashMap<>();
+        message.put("phase", PATCH_PHASE);
+        message.put("action",SUCCESS_ACTION );
+        message.put("gateway", CONNECTOR_GATEWAY);
+        message.put("content", content);
+
+        this.natsService.jetstream().publish(SUBJECT, this.natsService.serialize(message));
+
+        LOG.info(
+                "Published PATCH SUCCESS audit transferId={} payeeMobile={} amount={} homeTransactionId={}",
+                input.correlationId, input.payeeMobile(), input.amount(), input.homeTransactionId());
     }
 
     private synchronized void ensureStream() throws Exception {
@@ -122,5 +151,12 @@ public class AuditPublisherService {
                                   String payerFsp,
                                   String payeeFsp,
                                   String error) { }
+
+    public record PatchSuccessInput(String correlationId,
+                                    String payerFsp,
+                                    String payeeFsp,
+                                    String payeeMobile,
+                                    String amount,
+                                    String homeTransactionId) { }
 
 }

@@ -162,6 +162,8 @@ public class PatchTransfersListener implements InitializingBean, DisposableBean 
                                                                 confirmationState,
                                                                 pending.extensionList());
 
+            publishPatchSuccessAudit(msg, pending, confirmedHomeTransactionId);
+
             pendingStore.delete(transferId);
 
             LOG.info("patchTransfers CONFIRMED transferId={} payeeMobile={} amount={} {} homeTransactionId={}",
@@ -294,6 +296,23 @@ public class PatchTransfersListener implements InitializingBean, DisposableBean 
             LOG.error("Failed to publish PATCH ERROR audit for transferId={}", msg.getTransferId(), publishErr);
         }
     }
+
+    private void publishPatchSuccessAudit(PatchTransfersNatsMessage msg,
+                                          PendingTransfer pending,
+                                          String homeTransactionId) {
+        try {
+            auditPublisher.publishPatchSuccess(
+                    new AuditPublisherService.PatchSuccessInput(
+                            msg.getTransferId(), msg.getPayerFsp(), msg.getPayeeFsp(),
+                            pending.payeeMobile(), pending.amount(), homeTransactionId));
+            LOG.info("publishPatchSuccessAudit for homeTransctionId :{}", homeTransactionId);
+        } catch (Exception publishErr) {
+            LOG.error(
+                    "Failed to publish PATCH SUCCESS audit for transferId={}", msg.getTransferId(),
+                    publishErr);
+        }
+    }
+
 
     private ConfirmationForTransfer.QuoteRequest quoteRequest(String payeeMobile,
                                                               String payerMobile,
