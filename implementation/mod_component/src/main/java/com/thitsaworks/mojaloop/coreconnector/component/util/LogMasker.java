@@ -41,7 +41,9 @@ public class LogMasker {
                     String value = jsonMatcher.group(3);
                     String masked = value;
 
-                    if (fieldName != null && fieldName.matches("(?i)user|pwd")) {
+                    if (fieldName != null && fieldName.equalsIgnoreCase("username")) {
+                        masked = maskUsername(value);
+                    } else if (fieldName != null && fieldName.matches("(?i)user|pwd")) {
                         masked = value.length() > 3
                                      ? "****" + value.substring(value.length() - 3)
                                      : "****";
@@ -73,6 +75,19 @@ public class LogMasker {
         } catch (Exception e) {
             return "ERROR_SERIALIZING" + e.getMessage();
         }
+    }
+
+    private static String maskUsername(String value) {
+
+        if (value == null || value.isEmpty()) {
+            return value;
+        }
+
+        if (value.length() <= 3) {
+            return "*".repeat(value.length());
+        }
+
+        return "*".repeat(value.length() - 3) + value.substring(value.length() - 3);
     }
 
 }
