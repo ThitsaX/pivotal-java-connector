@@ -65,8 +65,8 @@ public class AuditPublisherService {
 
         Map<String, Object> content = new LinkedHashMap<>();
         content.put("correlationId", input.correlationId());
-        content.put("payerFspId", input.payerFsp());
-        content.put("payeeFspId", input.payeeFsp());
+        content.put("payerFsp", input.payerFsp());
+        content.put("payeeFsp", input.payeeFsp());
         content.put("error", input.error());
         content.put("occurredAt", Instant.now().toString());
 
